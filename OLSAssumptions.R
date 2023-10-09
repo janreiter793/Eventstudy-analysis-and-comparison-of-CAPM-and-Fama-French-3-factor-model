@@ -170,8 +170,26 @@ histQQNormPlot <- function(data, name) {
          y = "Theoretical quantiles")
   
   # Combine both plots
-  comb <- (hist_plot + qq_plot)
-  comb %>% return
+  (hist_plot + qq_plot) %>% return
+}
+
+# Takes a data frame of excess returns. Fits model on all
+# excess returns columns and check for normally distributed
+# residuals with the jarque-bera test.
+testNormalityModels <- function(data) {
+  vals <- 0
+  for(col in names(data[, -1])) {
+    # Fit an FF-3-factor model, and calculate std. residuals, find
+    # the p-value from the jarque-bera test
+    model <- lm(data[[col]] ~ factors$Mkt.RF + factors$SMB + factors$HML)
+    res <- model %>% resid %>% scale %>% jarque.bera.test %$% p.value
+    if(res >= 0.05) {
+      vals <- vals + 1 
+    }
+  }
+  # Returns acceptance rate (number of accepted jarque-bera tests /
+  # number af tests performed)
+  return(vals / length(data[, -1]))
 }
 
 ########## ANALYSIS EXECUTION ##########
@@ -195,6 +213,12 @@ rm(smallcap_prices, midcap_prices, largecap_prices)
 smallcap_return %<>% returnsToExcessReturn 
 midcap_return   %<>% returnsToExcessReturn
 largecap_return %<>% returnsToExcessReturn
+
+# Average acceptance rates for ff-3-factor model on small,
+# medium, and large cap stock returns.
+smallcap_return %>% testNormalityModels
+midcap_return   %>% testNormalityModels 
+largecap_return %>% testNormalityModels
 
 # Plotting histogram and qqplot for 3 stocks, one for each size.
 # Do this 3 times and concatenate to one big plot

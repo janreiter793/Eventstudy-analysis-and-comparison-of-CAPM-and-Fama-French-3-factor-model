@@ -11,6 +11,8 @@
 #                         program can find the Fama-French factors
 #
 rm(list = ls())
+set.seed(100) # Sets seed. Should be 100 to produce same results as
+              # given in the project
 library(yahoofinancer)
 library(magrittr)
 library(zoo)
@@ -18,7 +20,7 @@ library(caret)
 
 ########## PROGRAM PARAMETERS ##########
 # Period to retrieve data from
-PERIOD <- c('2003-01-01', '2022-01-01')
+PERIOD <- c('2002-01-01', '2022-01-01')
 
 # The names of companies used in analysis separated into large 
 # cap, mid cap, and small cap
@@ -282,18 +284,18 @@ ff3_lcap_average_metrics   <- FF3_LCAP_Results   %>% calc_average_metrics
 # Neat data-frame to summarize the results
 conclusion <- data.frame(MAE.s = c(naive_scap_average_metrics[1], capm_scap_average_metrics[1], ff3_scap_average_metrics[1]),
                          MAE.m = c(naive_mcap_average_metrics[1], capm_mcap_average_metrics[1], ff3_mcap_average_metrics[1]),
-                         MAE.l = c(naive_lcap_average_metrics[1], capm_mcap_average_metrics[1], ff3_lcap_average_metrics[1]),
+                         MAE.l = c(naive_lcap_average_metrics[1], capm_lcap_average_metrics[1], ff3_lcap_average_metrics[1]),
                          RMSE.s = c(naive_scap_average_metrics[2], capm_scap_average_metrics[2], ff3_scap_average_metrics[2]),
                          RMSE.m = c(naive_mcap_average_metrics[2], capm_mcap_average_metrics[2], ff3_mcap_average_metrics[2]),
-                         RMSE.l = c(naive_lcap_average_metrics[2], capm_mcap_average_metrics[2], ff3_lcap_average_metrics[2]),
+                         RMSE.l = c(naive_lcap_average_metrics[2], capm_lcap_average_metrics[2], ff3_lcap_average_metrics[2]),
                          Rsq.s = c(naive_scap_average_metrics[3], capm_scap_average_metrics[3], ff3_scap_average_metrics[3]),
                          Rsq.m = c(naive_mcap_average_metrics[3], capm_mcap_average_metrics[3], ff3_mcap_average_metrics[3]),
-                         Rsq.l = c(naive_lcap_average_metrics[3], capm_mcap_average_metrics[3], ff3_lcap_average_metrics[3]),
+                         Rsq.l = c(naive_lcap_average_metrics[3], capm_lcap_average_metrics[3], ff3_lcap_average_metrics[3]),
                          adjRsq.s = c(naive_scap_average_metrics[4], capm_scap_average_metrics[4], ff3_scap_average_metrics[4]),
                          adjRsq.m = c(naive_mcap_average_metrics[4], capm_mcap_average_metrics[4], ff3_mcap_average_metrics[4]),
-                         adjRsq.l = c(naive_lcap_average_metrics[4], capm_mcap_average_metrics[4], ff3_lcap_average_metrics[4]),
+                         adjRsq.l = c(naive_lcap_average_metrics[4], capm_lcap_average_metrics[4], ff3_lcap_average_metrics[4]),
                          AIC.s = c(naive_scap_average_metrics[5], capm_scap_average_metrics[5], ff3_scap_average_metrics[5]),
                          AIC.m = c(naive_mcap_average_metrics[5], capm_mcap_average_metrics[5], ff3_mcap_average_metrics[5]),
-                         AIC.l = c(naive_lcap_average_metrics[5], capm_mcap_average_metrics[5], ff3_lcap_average_metrics[5]))
+                         AIC.l = c(naive_lcap_average_metrics[5], capm_lcap_average_metrics[5], ff3_lcap_average_metrics[5]))
 row.names(conclusion) <- c('Naive Model', 'CAPM', 'FF3')
 conclusion %>% print
