@@ -7,7 +7,7 @@
 #
 # The ANALYSIS EXECUTION is the "main" part of of the script.
 #
-# BEFORE RUNNING Program: Make sure to edit path on line 35 such that
+# BEFORE RUNNING Program: Make sure to edit path on line 40 such that
 #                         program can find the Fama-French factors
 #
 rm(list = ls())
