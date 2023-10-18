@@ -2,7 +2,7 @@
 #   This code is made to test the permutationTest-function
 #   18-10-2023
 #
-#   Runs 1000 permutation tests on each 0.05 step of correlation -1 to 1. 
+#   Runs 1000 permutation tests on each 0.05 step of correlation from -1 to 1. 
 #   Measures the rate of rejected H_0 hypotheses for each level, where the H_0
 #   hypothesis states that there is no correlation.
 #
