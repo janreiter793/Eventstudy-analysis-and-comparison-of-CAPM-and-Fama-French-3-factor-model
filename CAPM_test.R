@@ -297,7 +297,6 @@ smallcap_return %>% correlationsPlotFactors
 midcap_return %>% correlationsPlotFactors
 largecap_return %>% correlationsPlotFactors
 
-
 ## Test for intercept
 # Check the significance of the intercept
 intercept_s <- smallcap_return %>% interceptTest
