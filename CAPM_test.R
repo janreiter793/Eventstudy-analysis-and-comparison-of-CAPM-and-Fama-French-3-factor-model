@@ -27,6 +27,10 @@ library(caret)
 library(ggplot2)
 library(boot)
 library(gridExtra)
+library(patchwork)
+library(cowplot)
+library(tseries)
+library(moments)
 
 ########## PROGRAM PARAMETERS ##########
 # Period to retrieve data from
@@ -47,8 +51,9 @@ names_SCAP <- c('RES', 'FCPT', 'SIX', 'MWA', 'FULT',
 PATH <- "C:\\Users\\janre\\Documents\\uni\\7. Semester\\Projekt\\Kode\\factors.csv"
 
 # Parameters:
-R        <- 1000 # number of bootstrap samples
-NUM_PERM <- 1000 # Number of permutations used in permutation test
+R        <- 1000  # number of bootstrap samples
+NUM_PERM <- 1000  # Number of permutations used in permutation test
+doPlots  <- FALSE # If TRUE, the program makes the plots
 
 ########## LOAD FF3 FACTORS INTO R ##########
 # Read the factors Rm - Rf, SMB, HML, Rf
@@ -169,6 +174,28 @@ interceptTest <- function(stocks) {
   return(res / length(stocks[, -1]))
 }
 
+# Returns the means of the residuals on models trained on stocks
+extract_residMean <- function(stocks) {
+  # Go through each column except for the first which contains
+  # only dates. Store the means of the residuals in res.
+  res <- stocks[, -1] %>% length %>% numeric
+  for(stock in 1:length(stocks[, -1])) {
+    # Take all non-na entries for stock, and find corresponding
+    # values for excess market return. Construct new dataframe
+    # with only these two vectors.
+    values_stock <- stocks %>% {.[, stock + 1][!is.na(.[, stock + 1])]}
+    values_factors <- stocks %>% {factors[!is.na(.[, stock + 1]), 2]}
+    data <- data.frame(y = values_stock, x = values_factors)
+    rm(values_stock, values_factors)
+    
+    # Train a model on data, and obtain the residuals
+    model <- lm(y ~ x, data = data)
+    res[stock] <- model %>% resid %>% mean
+  }
+  
+  res %>% return
+}
+
 # Run a permutation test between two data sets using either Pearson's, 
 # Spearman's or Kendall's correlation coefficient. Returns P-value for the test.
 permutationTest <- function(A, B, method) {
@@ -237,6 +264,63 @@ correlationsPlotFactors <- function(stocks) {
   plots %>% {c(., ncol = 5)} %>% {do.call(grid.arrange, .)} %>% return
 }
 
+# Takes a vector of simple excess return, fits a CAPM, and plots a density 
+# histogram and qqplot of the standardized residuals, to visualize the 
+# distribution of the standardized residuals.
+histQQNormPlot <- function(data, name) {
+  # First fit a CAPM, and calculate std. residuals
+  model <- lm(data ~ factors$Mkt.RF)
+  residuals <- model %>% resid %>% scale %>% {data.frame(x = .)}
+  residuals %<>% na.omit 
+  
+  # Create the histogram plot
+  hist_plot <- ggplot(residuals, aes(x = x)) +
+    theme_minimal() +
+    geom_histogram(aes(y = after_stat(density)), 
+                   binwidth = 0.1, fill = "blue", 
+                   color = "black", 
+                   alpha = 0.7) +
+    stat_function(fun = dnorm, args = list(mean = 0, sd = 1), 
+                  color = "red", size = 1) +
+    labs(subtitle = paste("Skewness:", residuals %>% skewness %>% round(digits = 4)),
+         x = "Standardized residuals",
+         y = "Frequency")
+  
+  # Create the QQ plot
+  qq_plot <- ggplot(residuals, aes(sample = x)) +
+    theme_minimal() +
+    stat_qq() +
+    stat_qq_line() +
+    labs(subtitle = paste("Kurtosis:", residuals %>% kurtosis %>% round(digits = 4)),
+         x = "Theoretical quantiles",
+         y = "Sample quantiles")
+  
+  combined_plot <- (hist_plot + qq_plot)
+  title_text <- ggdraw() + draw_label(name, size = 16, hjust = 0.5)
+  
+  # Combine both plots
+  plot_grid(title_text, combined_plot, ncol = 1, rel_heights = c(0.1, 1)) %>% return
+}
+
+# Takes a data frame of excess returns. Fits model on all
+# excess returns columns and check for normally distributed
+# residuals with the jarque-bera test.
+testNormalityModels <- function(data) {
+  vals <- 0
+  for(col in names(data[, -1])) {
+    # Fit a CAPM, and calculate std. residuals, find
+    # the p-value from the jarque-bera test
+    model <- lm(data[[col]] ~ factors$Mkt.RF)
+    res <- model %>% resid %>% scale %>% jarque.bera.test %$% p.value
+    if(res >= 0.05) {
+      vals <- vals + 1 
+    }
+  }
+  # Returns acceptance rate (number of accepted jarque-bera tests /
+  # number af tests performed)
+  return(vals / length(data[, -1]))
+}
+
 ########## ANALYSIS EXECUTION ##########
 ## Setup - We retrieve the stockprices, transform them into simple
 #          Excess returns
@@ -262,10 +346,35 @@ smallcap_return %<>% returnsToExcessReturn
 midcap_return   %<>% returnsToExcessReturn
 largecap_return %<>% returnsToExcessReturn
 
-## Test for normality...
-#
-# ...
-#
+## Test for normality - Before we do anything, we would like to know, if our
+# data are normally distributed.
+smallcap_return %>% testNormalityModels
+midcap_return   %>% testNormalityModels
+largecap_return %>% testNormalityModels
+
+# They are all zero, suggesting that none of our residuals are normally 
+# distributed. We supplement this result with a visual inspection on the 
+# residuals for some of the CAPMs.
+
+# Plotting histogram and qqplot for 3 stocks, one for each size.
+# Do this 3 times and concatenate to one big plot
+if(doPlots) {
+  col1 <- smallcap_return$RES %>% histQQNormPlot("RES") /
+    midcap_return$AMBA %>% histQQNormPlot("AMBA") /
+    largecap_return$AAPL %>% histQQNormPlot("AAPL")
+  
+  col2 <- smallcap_return$FCPT %>% histQQNormPlot("FCPT") /
+    midcap_return$CLOV %>% histQQNormPlot("CLOV")   /
+    largecap_return$MSFT %>% histQQNormPlot("MSFT")
+  
+  col3 <- smallcap_return$SIX %>% histQQNormPlot("SIX") /
+    midcap_return$SFIX %>% histQQNormPlot("SFIX") /
+    largecap_return$GOOG %>% histQQNormPlot("GOOG")
+  
+  combined_plots <- plot_grid(col1, col2, col3, ncol = 3)
+  combined_plots %>% print
+  rm(combined_plots, col1, col2, col3)
+}
 
 ## Test for exogeneity - To make sure we have unbiased, and consistent 
 # estimator, we check for exogeneity by using correlation coefficient tests.
@@ -286,16 +395,29 @@ lcap_pval <- largecap_return %>% correlationTest_Pearson
 
 # Calculate the rate of accepted H_0-hypotheses. (A rejection implies 
 # that residuals are correlated with the factors)
-print("Rate of CAPMs where residuals are uncorrelated with excess market return:")
+{print("Rate of CAPMs where residuals are uncorrelated with excess market return:")
 scap_pval %>% unlist %>% sum %>% {. / 10} %>% {paste("Small cap:", .)} %>% print
 mcap_pval %>% unlist %>% sum %>% {. / 10} %>% {paste("Mid cap:  ", .)} %>% print
-lcap_pval %>% unlist %>% sum %>% {. / 10} %>% {paste("Large cap:", .)} %>% print
+lcap_pval %>% unlist %>% sum %>% {. / 10} %>% {paste("Large cap:", .)} %>% print}
+rm(scap_pval, mcap_pval, lcap_pval)
 
 # We supplement the tests visually by plotting the residuals against the excess
 # market returns.
-smallcap_return %>% correlationsPlotFactors
-midcap_return %>% correlationsPlotFactors
-largecap_return %>% correlationsPlotFactors
+if(doPlots) {
+  smallcap_return %>% correlationsPlotFactors %>% print
+  midcap_return   %>% correlationsPlotFactors %>% print
+  largecap_return %>% correlationsPlotFactors %>% print
+}
+
+# All in all looking a the correlation tests and the plots we conclude that the
+# residuals are uncorrelated with the excess market return.
+residualMeans <- data.frame(scap = smallcap_return %>% extract_residMean,
+                            mcap = midcap_return   %>% extract_residMean,
+                            lcap = largecap_return %>% extract_residMean)
+residualMeans %>% print
+rm(residualMeans)
+
+# These residuals are virtually zero. We conclude that we have exogeneity.
 
 ## Test for intercept
 # Check the significance of the intercept
@@ -304,7 +426,8 @@ intercept_m <- midcap_return   %>% interceptTest
 intercept_l <- largecap_return %>% interceptTest
 
 # Results
-print("The rates at which the intercept was significant:")
+{print("The rates at which the intercept was significant:")
 print(paste("Smallcap:", intercept_s))
 print(paste("Midcap:  ", intercept_m))
-print(paste("Largecap:", intercept_l))
+print(paste("Largecap:", intercept_l))}
+rm(intercept_s, intercept_m, intercept_l)
