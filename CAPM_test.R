@@ -3,7 +3,8 @@
 # This code downloads historical closing prices for 30 stocks in the period    #
 # from 2002-01-01 to 2022-01-0. Here 10 stocks are chosen from a small cap     #
 # stocks list, 10 from a mid cap stocks list, and 10 from a large cap list.    #
-# Then we use these 30 stocks to test the CAPM.                                #
+# Then we use these 30 stocks to test the CAPM for being a restricted model    #
+# using SUR model estimation and HC3.                                          #
 #                                                                              #
 # OVERVIEW - The script is organized into 4 sections:                          #
 #   - PROGRAM PARAMETERS                                                       #
@@ -13,8 +14,10 @@
 #                                                                              #
 # The ANALYSIS EXECUTION is the "main" part of of the script.                  #
 #                                                                              #
-# BEFORE RUNNING Program: Make sure to edit path on line 51 such that          #
-#                         program can find the Fama-French factors             #
+# BEFORE RUNNING Program:                                                      #
+#   1) Make sure to edit path on line 50 such that program can find the Fama-  #
+#      French factors.                                                         #
+#   2) Edit line 53 to TRUE if plots are wanted. (They take time)              #
 #                                                                              #
 ################################################################################
 rm(list = ls())
@@ -22,15 +25,11 @@ set.seed(100) # Sets seed. Should be 100 to produce same results as
               # given in the project
 library(yahoofinancer)
 library(magrittr)
-library(zoo)
-library(caret)
 library(ggplot2)
-library(boot)
-library(gridExtra)
-library(patchwork)
 library(cowplot)
 library(tseries)
 library(moments)
+library(sandwich)
 
 ########## PROGRAM PARAMETERS ##########
 # Period to retrieve data from
@@ -51,9 +50,8 @@ names_SCAP <- c('RES', 'FCPT', 'SIX', 'MWA', 'FULT',
 PATH <- "C:\\Users\\janre\\Documents\\uni\\7. Semester\\Projekt\\Kode\\factors.csv"
 
 # Parameters:
-R        <- 1000  # number of bootstrap samples
-NUM_PERM <- 1000  # Number of permutations used in permutation test
-doPlots  <- FALSE # If TRUE, the program makes the plots
+doPlots  <- TRUE # If TRUE, the program makes the plots
+alpha    <- 0.05  # Confidence level
 
 ########## LOAD FF3 FACTORS INTO R ##########
 # Read the factors Rm - Rf, SMB, HML, Rf
@@ -144,126 +142,6 @@ extract_intercept <- function(df, indices) {
   return(coef(model)[[1]])
 }
 
-# Run bootstrap on models trained for each of the 30 stocks, return
-# the percentage of the models which has intercept zero
-interceptTest <- function(stocks) {
-  res <- 0
-  
-  # Go through each column except for the first which contains
-  # only dates
-  for(stock in names(stocks[, -1])) {
-    # Take all non-na entries for stock, and find corresponding
-    # values for excess market return. Construct new dataframe
-    # with only these two vectors.
-    values_stock <- stocks %>% {.[[stock]][!is.na(.[[stock]])]}
-    values_factors <- stocks %>% {factors[!is.na(.[[stock]]), 2]}
-    data <- data.frame(y = values_stock, x = values_factors)
-    rm(values_stock, values_factors)
-    
-    # Perform Bootstrap to obtain confidence interval for the
-    # intercept in the CAPM
-    print(paste("Running Bootstrap on:", stock))
-    boot_results <- boot(data = data, statistic = extract_intercept, R = R)
-    boot_ci <- boot.ci(boot_results, type = "basic")
-    print(boot_ci$basic[c(4, 5)])
-    
-    # If confidence interval does not contain 0, then we reject
-    # the null hypothesis (alpha = 0), hence we add one to res
-    if(!(boot_ci$basic[4] <= 0 & 0 <= boot_ci$basic[5])) { res <- res + 1 }
-  }
-  return(res / length(stocks[, -1]))
-}
-
-# Returns the means of the residuals on models trained on stocks
-extract_residMean <- function(stocks) {
-  # Go through each column except for the first which contains
-  # only dates. Store the means of the residuals in res.
-  res <- stocks[, -1] %>% length %>% numeric
-  for(stock in 1:length(stocks[, -1])) {
-    # Take all non-na entries for stock, and find corresponding
-    # values for excess market return. Construct new dataframe
-    # with only these two vectors.
-    values_stock <- stocks %>% {.[, stock + 1][!is.na(.[, stock + 1])]}
-    values_factors <- stocks %>% {factors[!is.na(.[, stock + 1]), 2]}
-    data <- data.frame(y = values_stock, x = values_factors)
-    rm(values_stock, values_factors)
-    
-    # Train a model on data, and obtain the residuals
-    model <- lm(y ~ x, data = data)
-    res[stock] <- model %>% resid %>% mean
-  }
-  
-  res %>% return
-}
-
-# Run a permutation test between two data sets using either Pearson's, 
-# Spearman's or Kendall's correlation coefficient. Returns P-value for the test.
-permutationTest <- function(A, B, method) {
-  # Firstly calculate the correlation coefficient from original data
-  obs_cor <- cor(A, B, method = method)
-  
-  # Calculate the PCC NUM_PERM times
-  pTest_cors <- NUM_PERM %>% numeric
-  for(i in 1:NUM_PERM) {
-    permuted_B <- B %>% sample
-    pTest_cors[i] <- cor(A, permuted_B, method = method)
-  }
-  
-  # Return the rate of which we had larger correlation coefficient than the 
-  # observed correlation coefficient on the original data
-  return(mean(abs(pTest_cors) >= abs(obs_cor)))
-}
-
-# Runs permutation test between each set of stock returns against factors$Mkt.RF
-# using Pearson's correlation coefficient, and returns a list of p-values.
-correlationTest_Pearson <- function(stocks) {
-  results <- list()
-  for(name in names(stocks[, -1])) {
-    # Aligning returns with factors, so we have no NA-values, and factors are
-    # aligned with the correct stock return values
-    values_stock <- stocks %>% {.[[name]][!is.na(.[[name]])]}
-    values_factors <- stocks %>% {factors[!is.na(.[[name]]), 2]}
-    data <- data.frame(y = values_stock, x = values_factors)
-    rm(values_stock, values_factors)
-    
-    # Obtain the p-values from the permutation test using PCC.
-    model <- lm(y ~ x, data = data)
-    residuals <- model %>% resid
-    print(paste("Correlationtesting:", name))
-    results[[name]] <- permutationTest(residuals, data$x, method = "pearson")
-  }
-  results %>% return
-}
-
-# Takes a dataframe of stock returns. Plots CAPM residuals for each vector of
-# returns against factors$Mkt.RF shape in a neat 2x5-plots-figure, to visualize
-# the correlation. (May take some time to run...)
-correlationsPlotFactors <- function(stocks) {
-  plots <- list()
-  for(name in names(stocks[, -1])) {
-    # Aligning returns with factors, so we have no NA-values, and factors are
-    # aligned with the correct stock return values
-    values_stock <- stocks %>% {.[[name]][!is.na(.[[name]])]}
-    values_factors <- stocks %>% {factors[!is.na(.[[name]]), 2]}
-    data <- data.frame(y = values_stock, x = values_factors)
-    rm(values_stock, values_factors)
-    
-    # Fit the model, obtain the residuals, and generate the correlation plot.
-    model <- lm(y ~ x, data = data)
-    data <- model %>% resid %>% {data.frame(y = ., x = data$x)}
-    plots[[name]] <- ggplot(data, aes(x = x, y = y)) +
-      geom_point() +
-      theme_minimal() +
-      labs(title = name, 
-           subtitle = paste("PCC:", cor(data$y, data$x)),
-           x = "Excess Market Return",
-           y = "Residuals")
-  }
-  
-  # Return the 2x5-plots-figure
-  plots %>% {c(., ncol = 5)} %>% {do.call(grid.arrange, .)} %>% return
-}
-
 # Takes a vector of simple excess return, fits a CAPM, and plots a density 
 # histogram and qqplot of the standardized residuals, to visualize the 
 # distribution of the standardized residuals.
@@ -304,7 +182,7 @@ histQQNormPlot <- function(data, name) {
 
 # Takes a data frame of excess returns. Fits model on all
 # excess returns columns and check for normally distributed
-# residuals with the jarque-bera test.
+# residuals with the Jarque-Bera test.
 testNormalityModels <- function(data) {
   vals <- 0
   for(col in names(data[, -1])) {
@@ -319,6 +197,86 @@ testNormalityModels <- function(data) {
   # Returns acceptance rate (number of accepted jarque-bera tests /
   # number af tests performed)
   return(vals / length(data[, -1]))
+}
+
+# Takes a list of vectors of dependent variables and a list of data frames of
+# independent variables, then estimates a SUR-model using OLS
+surfit <- function(dependent, independent, intercept = TRUE) {
+  # Takes all the vectors of dependent variables and stack them onto each other
+  Y <- dependent %>% unlist
+  
+  # If intercept is wanted, then add a column of ones to each dataframe
+  if(intercept) {
+    independent %<>% lapply(function(df) df %<>% nrow %>% {rep(1, .)} %>% {cbind(., df)})
+  }
+    
+  # Find number of rows, columns and number of equations
+  rows <- independent %>% lapply(function(df) nrow(df)) %>% unname %>% unlist
+  cols <- independent %>% lapply(function(df) ncol(df)) %>% unname %>% unlist
+  ncols <- cols %>% sum
+  g <- independent %>% length
+  
+  # Create block matrix X by first adding the first dataframe of independent
+  # variables, then adding zeros on
+  X <- independent[[1]] %>% as.matrix
+  X %<>% cbind(matrix(0, ncol = ncols - cols[1], nrow = rows[1]))
+  
+  # Then add all the other blocks of regressors and zeros
+  for(i in 2:g) {
+    if(g < 2) { break}
+    m <- rows[i]
+    n <- cols[1:(i - 1)] %>% sum
+    zero_matrix <- matrix(0, ncol = n, nrow = m)
+    zero_matrix %<>% cbind(as.matrix(independent[[i]]))
+    if(i < g) {
+      n <- cols[(i + 1):g] %>% sum
+      zero_matrix_2 <- matrix(0, ncol = n, nrow = m)
+      zero_matrix %<>% cbind(zero_matrix_2)
+    }
+    X %<>% rbind(zero_matrix)
+  }
+  X %<>% unname
+  
+  # Fit the model by using OLS
+  lm(Y ~ X + 0) %>% return
+}
+
+# Takes a dataframe of stock returns, and creates a new list where for each
+# stock there is a column of Mkt.RF with only the values that corresponds to
+# the available stock returns.
+aligndataframes <- function(stocks) {
+  # Aligning returns with factors, so we have no NA-values, and factors are
+  # aligned with the correct stock return values
+  liste <- list()
+  for(name in names(stocks[, -1])) {
+    values <- data.frame(stocks[[name]], f = factors$Mkt.RF)
+    values %<>% na.omit
+    liste[[name]] <- data.frame(values$f)
+  }
+  return(liste)
+}
+
+# Takes a dataframe of stock returns, omits NA-values and collect them in a list
+listifyStocks <- function(stocks) {
+  liste <- list()
+  for(name in names(stocks[, -1])) {
+    liste[[name]] <- na.omit(stocks[[name]])
+  }
+  return(liste)
+}
+
+# Performs a Wald test to test if a model may be restricted
+Waldtest <- function(model, V, R) {
+  theta <- model$coefficients %>% as.matrix
+  n     <- model$residuals %>% length
+  P     <- model$coefficients %>% length
+  Q     <- R %>% nrow
+  
+  # Compute Wald statistic
+  statistic <- t(R %*% theta) %*% solve(V) %*% (R %*% theta)
+  
+  # Returns degrees of freedom and the test statistic
+  return(list(Q, statistic))
 }
 
 ########## ANALYSIS EXECUTION ##########
@@ -348,9 +306,9 @@ largecap_return %<>% returnsToExcessReturn
 
 ## Test for normality - Before we do anything, we would like to know, if our
 # data are normally distributed.
-smallcap_return %>% testNormalityModels
-midcap_return   %>% testNormalityModels
-largecap_return %>% testNormalityModels
+{smallcap_return %>% testNormalityModels %>% print
+midcap_return    %>% testNormalityModels %>% print
+largecap_return  %>% testNormalityModels %>% print}
 
 # They are all zero, suggesting that none of our residuals are normally 
 # distributed. We supplement this result with a visual inspection on the 
@@ -376,58 +334,64 @@ if(doPlots) {
   rm(combined_plots, col1, col2, col3)
 }
 
-## Test for exogeneity - To make sure we have unbiased, and consistent 
-# estimator, we check for exogeneity by using correlation coefficient tests.
+## Fit a SUR model for smallcap, one for midcap, one for largecap, and one 
+# for all of them combined. Perform a Wald test to test if the intercepts are
+# significant.
 
-# Find the number of values that occur more than once in factors$Mkt.RF, find
-# the overall number of different values, then calculate the percentage of 
-# values that occur more than once
-ties        <- factors$Mkt.RF %>% table %>% {. > 1} %>% sum
-unique_nums <- factors$Mkt.RF %>% table %>% length
-print(paste("Percentage of values that occour more than once:", ties/unique_nums))
-rm(ties, unique_nums)
+# For small cap
+y <- listifyStocks(smallcap_return)
+x <- aligndataframes(smallcap_return)
+SUR_model_smallcap <- surfit(y, x)
 
-# Because of many ties, we only use the permutation test with the Pearson
-# correlation coefficient
-scap_pval <- smallcap_return %>% correlationTest_Pearson
-mcap_pval <- midcap_return   %>% correlationTest_Pearson
-lcap_pval <- largecap_return %>% correlationTest_Pearson
+# For mid cap
+y <- listifyStocks(midcap_return)
+x <- aligndataframes(midcap_return)
+SUR_model_midcap   <- surfit(y, x)
 
-# Calculate the rate of accepted H_0-hypotheses. (A rejection implies 
-# that residuals are correlated with the factors)
-{print("Rate of CAPMs where residuals are uncorrelated with excess market return:")
-scap_pval %>% unlist %>% sum %>% {. / 10} %>% {paste("Small cap:", .)} %>% print
-mcap_pval %>% unlist %>% sum %>% {. / 10} %>% {paste("Mid cap:  ", .)} %>% print
-lcap_pval %>% unlist %>% sum %>% {. / 10} %>% {paste("Large cap:", .)} %>% print}
-rm(scap_pval, mcap_pval, lcap_pval)
+# For large cap
+y <- listifyStocks(largecap_return)
+x <- aligndataframes(largecap_return)
+SUR_model_largecap <- surfit(y, x)
 
-# We supplement the tests visually by plotting the residuals against the excess
-# market returns.
-if(doPlots) {
-  smallcap_return %>% correlationsPlotFactors %>% print
-  midcap_return   %>% correlationsPlotFactors %>% print
-  largecap_return %>% correlationsPlotFactors %>% print
-}
+# For all combined
+combined <- cbind(smallcap_return, midcap_return[-1], largecap_return[-1])
+y <- listifyStocks(combined)
+x <- aligndataframes(combined)
+SUR_model_combined <- surfit(y, x)
 
-# All in all looking a the correlation tests and the plots we conclude that the
-# residuals are uncorrelated with the excess market return.
-residualMeans <- data.frame(scap = smallcap_return %>% extract_residMean,
-                            mcap = midcap_return   %>% extract_residMean,
-                            lcap = largecap_return %>% extract_residMean)
-residualMeans %>% print
-rm(residualMeans)
+# Setup the restrictions for the models
+R      <- diag(1, nrow = 20, ncol = 20)
+R_comb <- diag(1, nrow = 60, ncol = 60)
+R[seq(2, 20, by = 2), seq(2, 20, by = 2)] <- 0
+R_comb[seq(2, 60, by = 2), seq(2, 60, by = 2)] <- 0
 
-# These residuals are virtually zero. We conclude that we have exogeneity.
+# Perform a Wald test to test if the intercepts are significant
+res_small <- SUR_model_smallcap %>% Waldtest(vcovHC(., type = "HC3"), R)
+res_mid   <- SUR_model_midcap   %>% Waldtest(vcovHC(., type = "HC3"), R)
+res_large <- SUR_model_largecap %>% Waldtest(vcovHC(., type = "HC3"), R)
+res_combined <- SUR_model_combined %>% Waldtest(vcovHC(., type = "HC3"), R_comb)
+  
+# Calculate the 95% confidence region. The Wald statistic follow as chi
+# squared distribution with Q degrees of freedom under the null hypothesis
+Q_small <- res_small[[1]]
+Q_mid   <- res_mid[[1]]
+Q_large <- res_large[[1]]
+Q_combined <- res_combined[[1]]
 
-## Test for intercept
-# Check the significance of the intercept
-intercept_s <- smallcap_return %>% interceptTest
-intercept_m <- midcap_return   %>% interceptTest
-intercept_l <- largecap_return %>% interceptTest
+confidence_level <- 1 - alpha
+lower_critical_value <- qchisq((1 - confidence_level) / 2, df = Q_small)
+upper_critical_value <- qchisq(1 - (1 - confidence_level) / 2, df = Q_small)
+confidence_interval <- c(lower_critical_value, upper_critical_value)
+{print(paste("95% Confidence region:", confidence_interval[1], 
+            confidence_interval[2]))
+print(paste("Wald test statistic for restricted model (small):   ", res_small[2]))
+print(paste("Wald test statistic for restricted model (mid):     ", res_mid[2]))
+print(paste("Wald test statistic for restricted model (large):   ", res_large[2]))}
 
-# Results
-{print("The rates at which the intercept was significant:")
-print(paste("Smallcap:", intercept_s))
-print(paste("Midcap:  ", intercept_m))
-print(paste("Largecap:", intercept_l))}
-rm(intercept_s, intercept_m, intercept_l)
+# Confidence region for the combined model
+lower_critical_value <- qchisq((1 - confidence_level) / 2, df = Q_combined)
+upper_critical_value <- qchisq(1 - (1 - confidence_level) / 2, df = Q_combined)
+confidence_interval <- c(lower_critical_value, upper_critical_value)
+{print(paste("95% Confidence region for combined model:", confidence_interval[1], 
+             confidence_interval[2]))
+print(paste("Wald test statistic for restricted model (combined):   ", res_combined[2]))}
