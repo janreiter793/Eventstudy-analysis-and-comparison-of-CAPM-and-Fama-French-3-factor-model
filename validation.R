@@ -1,15 +1,17 @@
-#
-# OVERVIEW - The script is organized into 4 sections:
-#   - PROGRAM PARAMETERS
-#   - LOAD FF3 FACTORS INTO R
-#   - FUNCTIONS
-#   - ANALYSIS EXECUTION
-#
-# The ANALYSIS EXECUTION is the "main" part of of the script.
-#
-# BEFORE RUNNING Program: Make sure to edit path on line 35 such that
-#                         program can find the Fama-French factors
-#
+################################################################################
+#                                                                              #
+# OVERVIEW - The script is organized into 4 sections:                          #
+#   - PROGRAM PARAMETERS                                                       #
+#   - LOAD FF3 FACTORS INTO R                                                  #
+#   - FUNCTIONS                                                                #
+#   - ANALYSIS EXECUTION                                                       #
+#                                                                              #
+# The ANALYSIS EXECUTION is the "main" part of of the script.                  #
+#                                                                              #
+# BEFORE RUNNING Program: Make sure to edit path on line 35 such that          #
+#                         program can find the Fama-French factors             #
+#                                                                              #
+################################################################################
 rm(list = ls())
 set.seed(100) # Sets seed. Should be 100 to produce same results as
               # given in the project
@@ -39,7 +41,6 @@ PATH <- "C:\\Users\\janre\\Documents\\uni\\7. Semester\\Projekt\\Kode\\factors.c
 
 # Parameters
 validation_split <- 0.2 # The percentage of data assigned to a test data set.
-R                <- 1000  # number of bootstrap samples
 
 ########## LOAD FF3 FACTORS INTO R ##########
 # Read the factors Rm - Rf, SMB, HML, Rf
@@ -258,97 +259,6 @@ FF3_validation <- function(stocks) {
   return(mean_metric)
 }
 
-# Takes a data frame of excess returns of stocks. Fits FF-3 models onto all
-# columns of excess returns. Obtain residuals. Fit models: u_t ~ HML_t + SMB_t
-# on all sets of residuals, and return the coefficients of determination
-exogeneity <- function(stocks) {
-  # Variable to store the R^2 values
-  k   <- stocks %>% length
-  Rsq <- numeric(k)
-  
-  # Go through all the stocks
-  for(i in 2:k) {
-    # Take all non-na entries for stock, and find corresponding
-    # values for excess market return. Construct new data frame
-    # with only these two vectors.
-    values_stock <- stocks %>% {.[, i][!is.na(.[, i])]}
-    values_factors <- stocks %>% {factors[!is.na(.[, i]), 2:4]}
-    data <- data.frame(y = values_stock) %>% cbind(values_factors)
-    rm(values_stock, values_factors)
-    
-    # Fit an FF-3 model, and obtain residuals
-    model <- lm(y ~ Mkt.RF + HML + SMB, data = data)
-    residuals <- model %>% resid
-    
-    # Fit the model u_t ~ HML_t + SMB_t, and obtain coefficient of determination
-    resid_model <- lm(residuals ~ data$HML + data$SMB)
-    Rsq[i] <- resid_model %>% summary %$% r.squared
-  }
-  
-  # return the results
-  Rsq %>% return
-}
-
-# Returns the means of the residuals on FF-3 models trained on stocks
-extract_residMean <- function(stocks) {
-  # Go through each column except for the first which contains
-  # only dates. Store the means of the residuals in res.
-  res <- stocks[, -1] %>% length %>% numeric
-  for(stock in 1:length(stocks[, -1])) {
-    # Take all non-na entries for stock, and find corresponding
-    # values for excess market return. Construct new dataframe
-    # with only these two vectors.
-    values_stock <- stocks %>% {.[, stock + 1][!is.na(.[, stock + 1])]}
-    values_factors <- stocks %>% {factors[!is.na(.[, stock + 1]), 2:4]}
-    data <- data.frame(y = values_stock) %>% cbind(values_factors)
-    rm(values_stock, values_factors)
-    
-    # Train an FF-3 model on data, and obtain the residuals
-    model <- lm(y ~ Mkt.RF + HML + SMB, data = data)
-    res[stock] <- model %>% resid %>% mean
-  }
-  
-  res %>% return
-}
-
-# Returns the intercept of an FF-3 model trained on df
-extract_intercept <- function(df, indices) {
-  model <- lm(y ~ Mkt.RF + HML + SMB, data = df[indices, ])
-  return(coef(model)[[1]])
-}
-
-# Run bootstrap on FF-3 models trained for each of the 30 stocks, return
-# the percentage of the models which has intercept zero
-interceptTest <- function(stocks) {
-  res <- 0
-  
-  # Go through each column except for the first which contains
-  # only dates
-  for(stock in names(stocks[, -1])) {
-    # Take all non-na entries for stock, and find corresponding
-    # values for excess market return. Construct new dataframe
-    # with only these two vectors.
-    values_stock <- stocks %>% {.[[stock]][!is.na(.[[stock]])]}
-    values_factors <- stocks %>% {factors[!is.na(.[[stock]]), 2:4]}
-    data <- data.frame(y = values_stock)
-    data %<>% cbind(values_factors) 
-    rm(values_stock, values_factors)
-    
-    # Perform Bootstrap to obtain confidence interval for the
-    # intercept in the FF-3 model
-    print(paste("Running Bootstrap on:", stock))
-    boot_results <- boot(data = data, statistic = extract_intercept, R = R)
-    boot_ci <- boot.ci(boot_results, type = "basic")
-    print(paste("Confidence interval: [", boot_ci$basic[4], ";", 
-                boot_ci$basic[5], "]"))
-    
-    # If confidence interval does not contain 0, then we reject
-    # the null hypothesis (alpha = 0), hence we add one to res
-    if(!(boot_ci$basic[4] <= 0 & 0 <= boot_ci$basic[5])) { res <- res + 1 }
-  }
-  return(res / length(stocks[, -1]))
-}
-
 ########## ANALYSIS EXECUTION ##########
 # Check if all companies are listed on yahoo finance
 c(names_LCAP, names_MCAP, names_SCAP) %>% isListed
@@ -398,20 +308,3 @@ conclusion <- data.frame(MAE.s = c(naive_s$MAE, CAPM_s$MAE, FF3_s$MAE),
                          adjRsq.l = c(naive_l$adjRsq, CAPM_l$adjRsq, FF3_l$adjRsq))
 row.names(conclusion) <- c('Naive Model', 'CAPM', 'FF3')
 conclusion %>% print
-
-# Test for exogeneity in FF-3 models
-data.frame(SmallCap = smallcap_return %>% exogeneity,
-           MidCap   = midcap_return   %>% exogeneity,
-           largeCap = largecap_return %>% exogeneity) %>% print
-
-# All in all looking a the correlation tests and the plots we conclude that the
-# residuals are uncorrelated with the excess market return.
-residualMeans <- data.frame(scap = smallcap_return %>% extract_residMean,
-                            mcap = midcap_return  %>% extract_residMean,
-                            lcap = largecap_return %>% extract_residMean)
-residualMeans %>% print
-rm(residualMeans)
-
-smallcap_return %>% interceptTest
-midcap_return   %>% interceptTest
-largecap_return %>% interceptTest
