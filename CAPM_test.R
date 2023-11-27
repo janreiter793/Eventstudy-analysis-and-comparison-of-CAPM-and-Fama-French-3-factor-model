@@ -50,7 +50,7 @@ names_SCAP <- c('RES', 'FCPT', 'SIX', 'MWA', 'FULT',
 PATH <- "C:\\Users\\janre\\Documents\\uni\\7. Semester\\Projekt\\Kode\\factors.csv"
 
 # Parameters:
-doPlots  <- TRUE # If TRUE, the program makes the plots
+doPlots  <- FALSE # If TRUE, the program makes the plots
 alpha    <- 0.05  # Confidence level
 
 ########## LOAD FF3 FACTORS INTO R ##########
@@ -134,12 +134,6 @@ returnsToExcessReturn <- function(returns) {
     returns[[col]] %<>% {. - factors$RF}
   }
   return(returns)
-}
-
-# Returns the intercept of an LM trained on df
-extract_intercept <- function(df, indices) {
-  model <- lm(y ~ x, data = df[indices, ])
-  return(coef(model)[[1]])
 }
 
 # Takes a vector of simple excess return, fits a CAPM, and plots a density 
