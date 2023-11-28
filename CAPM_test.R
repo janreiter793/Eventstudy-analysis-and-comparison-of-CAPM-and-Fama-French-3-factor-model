@@ -354,10 +354,12 @@ x <- aligndataframes(combined)
 SUR_model_combined <- surfit(y, x)
 
 # Setup the restrictions for the models
-R      <- diag(1, nrow = 20, ncol = 20)
-R_comb <- diag(1, nrow = 60, ncol = 60)
-R[seq(2, 20, by = 2), seq(2, 20, by = 2)] <- 0
-R_comb[seq(2, 60, by = 2), seq(2, 60, by = 2)] <- 0
+hypothesisMatrix <- matrix(c(1, 0, 
+                             0, 0), nrow = 2, ncol = 2, byrow = TRUE)
+R      <- diag(1, nrow = 10, ncol = 10)
+R_comb <- diag(1, nrow = 30, ncol = 30)
+R %<>% kronecker(hypothesisMatrix)
+R_comb %<>% kronecker(hypothesisMatrix)
 
 # Perform a Wald test to test if the intercepts are significant
 res_small <- SUR_model_smallcap %>% Waldtest(vcovHC(., type = "HC3"), R)

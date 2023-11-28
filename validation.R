@@ -1,5 +1,13 @@
 ################################################################################
 #                                                                              #
+# This code downloads historical closing prices for 30 stocks in the period    #
+# from 2002-01-01 to 2022-01-0. Here 10 stocks are chosen from a small cap     #
+# stocks list, 10 from a mid cap stocks list, and 10 from a large cap list.    #
+# This data is used to obtain performance metrics of the naïve, the CAPM, and  #
+# the FF-3 model to asses which one is the best fit. Furhtermore SUR-models    #
+# are used in conjunction with the Wald test to test if the paramters associ-  #
+# ated with HML and SMB are statistically significant.                         #
+#                                                                              #
 # OVERVIEW - The script is organized into 4 sections:                          #
 #   - PROGRAM PARAMETERS                                                       #
 #   - LOAD FF3 FACTORS INTO R                                                  #
@@ -8,7 +16,7 @@
 #                                                                              #
 # The ANALYSIS EXECUTION is the "main" part of of the script.                  #
 #                                                                              #
-# BEFORE RUNNING Program: Make sure to edit path on line 35 such that          #
+# BEFORE RUNNING Program: Make sure to edit path on line 48 such that          #
 #                         program can find the Fama-French factors             #
 #                                                                              #
 ################################################################################
@@ -40,7 +48,8 @@ names_SCAP <- c('RES', 'FCPT', 'SIX', 'MWA', 'FULT',
 PATH <- "C:\\Users\\janre\\Documents\\uni\\7. Semester\\Projekt\\Kode\\factors.csv"
 
 # Parameters
-validation_split <- 0.2 # The percentage of data assigned to a test data set.
+validation_split <- 0.2  # The percentage of data assigned to a test data set.
+alpha            <- 0.05 # Significance level
 
 ########## LOAD FF3 FACTORS INTO R ##########
 # Read the factors Rm - Rf, SMB, HML, Rf
@@ -259,6 +268,89 @@ FF3_validation <- function(stocks) {
   return(mean_metric)
 }
 
+# Takes a list of vectors of dependent variables and a list of data frames of
+# independent variables, then estimates a SUR-model using OLS
+surfit <- function(dependent, independent, intercept = TRUE) {
+  # Takes all the vectors of dependent variables and stack them onto each other
+  Y <- dependent %>% unlist
+  
+  # If intercept is wanted, then add a column of ones to each dataframe
+  if(intercept) {
+    independent %<>% lapply(function(df) df %<>% nrow %>% {rep(1, .)} %>% {cbind(., df)})
+  }
+  
+  # Find number of rows, columns and number of equations
+  rows <- independent %>% lapply(function(df) nrow(df)) %>% unname %>% unlist
+  cols <- independent %>% lapply(function(df) ncol(df)) %>% unname %>% unlist
+  ncols <- cols %>% sum
+  g <- independent %>% length
+  
+  # Create block matrix X by first adding the first dataframe of independent
+  # variables, then adding zeros on
+  X <- independent[[1]] %>% as.matrix
+  X %<>% cbind(matrix(0, ncol = ncols - cols[1], nrow = rows[1]))
+  
+  # Then add all the other blocks of regressors and zeros
+  for(i in 2:g) {
+    if(g < 2) { break}
+    m <- rows[i]
+    n <- cols[1:(i - 1)] %>% sum
+    zero_matrix <- matrix(0, ncol = n, nrow = m)
+    zero_matrix %<>% cbind(as.matrix(independent[[i]]))
+    if(i < g) {
+      n <- cols[(i + 1):g] %>% sum
+      zero_matrix_2 <- matrix(0, ncol = n, nrow = m)
+      zero_matrix %<>% cbind(zero_matrix_2)
+    }
+    X %<>% rbind(zero_matrix)
+  }
+  X %<>% unname
+  
+  # Fit the model by using OLS
+  lm(Y ~ X + 0) %>% return
+}
+
+# Takes a data frame of stock returns, and creates a new list where for each
+# stock there are columns of Mkt.RF, HML, and SMB with only the values that 
+# corresponds to the available stock returns.
+aligndataframes <- function(stocks) {
+  # Aligning returns with factors, so we have no NA-values, and factors are
+  # aligned with the correct stock return values
+  liste <- list()
+  for(name in names(stocks[, -1])) {
+    values <- data.frame(stocks[[name]], 
+                         Mkt.RF = factors$Mkt.RF,
+                         HML = factors$HML,
+                         SMB = factors$SMB)
+    values %<>% na.omit
+    liste[[name]] <- data.frame(values$Mkt.RF, values$HML, values$SMB)
+  }
+  return(liste)
+}
+
+# Takes a dataframe of stock returns, omits NA-values and collect them in a list
+listifyStocks <- function(stocks) {
+  liste <- list()
+  for(name in names(stocks[, -1])) {
+    liste[[name]] <- na.omit(stocks[[name]])
+  }
+  return(liste)
+}
+
+# Performs a Wald test to test if a model may be restricted
+Waldtest <- function(model, V, R) {
+  theta <- model$coefficients %>% as.matrix
+  n     <- model$residuals %>% length
+  P     <- model$coefficients %>% length
+  Q     <- R %>% nrow
+  
+  # Compute Wald statistic
+  statistic <- t(R %*% theta) %*% solve(V) %*% (R %*% theta)
+  
+  # Returns degrees of freedom and the test statistic
+  return(list(Q, statistic))
+}
+
 ########## ANALYSIS EXECUTION ##########
 # Check if all companies are listed on yahoo finance
 c(names_LCAP, names_MCAP, names_SCAP) %>% isListed
@@ -308,3 +400,66 @@ conclusion <- data.frame(MAE.s = c(naive_s$MAE, CAPM_s$MAE, FF3_s$MAE),
                          adjRsq.l = c(naive_l$adjRsq, CAPM_l$adjRsq, FF3_l$adjRsq))
 row.names(conclusion) <- c('Naive Model', 'CAPM', 'FF3')
 conclusion %>% print
+
+## Use SUR-models and Wald tests to asses whether the coefficients for HML and
+# SMB are statistically significant. Adjust for heteroscedasticity using HC3.
+# Fit a SUR-model with all the FF-3 models
+combined <- cbind(smallcap_return, midcap_return[-1], largecap_return[-1])
+y <- listifyStocks(combined)
+x <- aligndataframes(combined)
+SUR_model_combined <- surfit(y, x)
+
+# Perform Wald test to test if parameters for HML and SMB
+R <- diag(1, nrow = 30, ncol = 30)
+hypothesisMatrix = c(0, 0, 0, 0,
+                     0, 0, 0, 0,
+                     0, 0, 1, 0,
+                     0, 0, 0, 1) %>% matrix(ncol = 4, nrow = 4, byrow = TRUE)
+R %<>% kronecker(hypothesisMatrix)
+res_comb <- SUR_model_combined %>% Waldtest(vcovHC(., type = "HC3"), R)
+
+# Find 95% confidence region
+Q_combined <- res_comb[[1]]
+confidence_level <- 1 - alpha
+lower_critical_value <- qchisq((1 - confidence_level) / 2, df = Q_combined)
+upper_critical_value <- qchisq(1 - (1 - confidence_level) / 2, df = Q_combined)
+confidence_interval <- c(lower_critical_value, upper_critical_value)
+{print(paste("95% Confidence region for combined model:", confidence_interval[1], 
+             confidence_interval[2]))
+  print(paste("Wald test statistic for restricted model (combined):", res_comb[2]))}
+
+# Fit a SUR-model on each of the three size groups
+y <- listifyStocks(smallcap_return)
+x <- aligndataframes(smallcap_return)
+SUR_model_smallcap <- surfit(y, x)
+
+# For mid cap
+y <- listifyStocks(midcap_return)
+x <- aligndataframes(midcap_return)
+SUR_model_midcap   <- surfit(y, x)
+
+# For large cap
+y <- listifyStocks(largecap_return)
+x <- aligndataframes(largecap_return)
+SUR_model_largecap <- surfit(y, x)
+
+# Perform Wald test on each of the three SUR-models to asses whether HML and
+# SMB are significant or not
+R <- diag(1, nrow = 10, ncol = 10)
+R %<>% kronecker(hypothesisMatrix)
+res_small <- SUR_model_smallcap %>% Waldtest(vcovHC(., type = "HC3"), R)
+res_mid   <- SUR_model_midcap   %>% Waldtest(vcovHC(., type = "HC3"), R)
+res_large <- SUR_model_largecap %>% Waldtest(vcovHC(., type = "HC3"), R)
+
+# Find the 95% confidence interval
+Q_small <- res_small[[1]]
+Q_mid   <- res_mid[[1]]
+Q_large <- res_large[[1]]
+lower_critical_value <- qchisq((1 - confidence_level) / 2, df = Q_small)
+upper_critical_value <- qchisq(1 - (1 - confidence_level) / 2, df = Q_small)
+confidence_interval <- c(lower_critical_value, upper_critical_value)
+{print(paste("95% Confidence region:", confidence_interval[1], 
+             confidence_interval[2]))
+  print(paste("Wald test statistic for restricted model (small):", res_small[2]))
+  print(paste("Wald test statistic for restricted model (mid):  ", res_mid[2]))
+  print(paste("Wald test statistic for restricted model (large):", res_large[2]))}
