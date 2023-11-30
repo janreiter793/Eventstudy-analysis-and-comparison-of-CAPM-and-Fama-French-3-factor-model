@@ -25,9 +25,7 @@ set.seed(100) # Sets seed. Should be 100 to produce same results as
               # given in the project
 library(yahoofinancer)
 library(magrittr)
-library(zoo)
-library(caret)
-library(boot)
+library(sandwich)
 
 ########## PROGRAM PARAMETERS ##########
 # Period to retrieve data from
@@ -420,12 +418,8 @@ res_comb <- SUR_model_combined %>% Waldtest(vcovHC(., type = "HC3"), R)
 
 # Find 95% confidence region
 Q_combined <- res_comb[[1]]
-confidence_level <- 1 - alpha
-lower_critical_value <- qchisq((1 - confidence_level) / 2, df = Q_combined)
-upper_critical_value <- qchisq(1 - (1 - confidence_level) / 2, df = Q_combined)
-confidence_interval <- c(lower_critical_value, upper_critical_value)
-{print(paste("95% Confidence region for combined model:", confidence_interval[1], 
-             confidence_interval[2]))
+critical_value <- qchisq(1 - alpha, df = Q_combined)
+{print(paste("95% critical value for combined model:", critical_value))
   print(paste("Wald test statistic for restricted model (combined):", res_comb[2]))}
 
 # Fit a SUR-model on each of the three size groups
@@ -451,15 +445,12 @@ res_small <- SUR_model_smallcap %>% Waldtest(vcovHC(., type = "HC3"), R)
 res_mid   <- SUR_model_midcap   %>% Waldtest(vcovHC(., type = "HC3"), R)
 res_large <- SUR_model_largecap %>% Waldtest(vcovHC(., type = "HC3"), R)
 
-# Find the 95% confidence interval
+# Find the 95% critical value
 Q_small <- res_small[[1]]
 Q_mid   <- res_mid[[1]]
 Q_large <- res_large[[1]]
-lower_critical_value <- qchisq((1 - confidence_level) / 2, df = Q_small)
-upper_critical_value <- qchisq(1 - (1 - confidence_level) / 2, df = Q_small)
-confidence_interval <- c(lower_critical_value, upper_critical_value)
-{print(paste("95% Confidence region:", confidence_interval[1], 
-             confidence_interval[2]))
+critical_value <- qchisq(1 - alpha, df = Q_small)
+{print(paste("95% critical value:", critical_value))
   print(paste("Wald test statistic for restricted model (small):", res_small[2]))
   print(paste("Wald test statistic for restricted model (mid):  ", res_mid[2]))
   print(paste("Wald test statistic for restricted model (large):", res_large[2]))}

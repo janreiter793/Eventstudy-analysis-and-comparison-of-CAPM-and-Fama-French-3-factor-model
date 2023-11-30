@@ -254,7 +254,7 @@ hypothesisMatrix = c(0, 0, 0, 0, 0,
                      0, 0, 0, 0, 0,
                      0, 0, 0, 0, 1) %>% matrix(ncol = 5, nrow = 5, byrow = TRUE)
 R %<>% kronecker(hypothesisMatrix)
-res_comb <- SUR_model_combined %>% Waldtest(vcovHC(., type = "HC3"), R)
+res_comb <- SUR_model_combined %>% Waldtest(vcovHC(., type = 'HC3'), R)
 
 # Find 95% confidence region
 Q_combined <- res_comb[[1]]
@@ -276,21 +276,20 @@ SUR_model_midcap   <- surfit(y, x)
 y <- listifyStocks(largecap_return)
 x <- aligndataframes(largecap_return)
 SUR_model_largecap <- surfit(y, x)
-SUR_model_smallcap %>% summary
 
 # Perform Wald test on each of the three SUR-models to asses whether HML and
 # SMB are significant or not
 R <- diag(1, nrow = 10, ncol = 10)
 R %<>% kronecker(hypothesisMatrix)
-res_small <- SUR_model_smallcap %>% Waldtest(vcovHC(., type = "HC3"), R)
-res_mid   <- SUR_model_midcap   %>% Waldtest(vcovHC(., type = "HC3"), R)
-res_large <- SUR_model_largecap %>% Waldtest(vcovHC(., type = "HC3"), R)
+res_small <- SUR_model_smallcap %>% Waldtest(vcovHC(., type = 'HC3'), R)
+res_mid   <- SUR_model_midcap   %>% Waldtest(vcovHC(., type = 'HC3'), R)
+res_large <- SUR_model_largecap %>% Waldtest(vcovHC(., type = 'HC3'), R)
 
 # Find the 95% confidence interval
 Q_small <- res_small[[1]]
 Q_mid   <- res_mid[[1]]
 Q_large <- res_large[[1]]
-critical_value <- qchisq(1 - alpha / 2, df = Q_small)
+critical_value <- qchisq(1 - alpha, df = Q_small)
 {print(paste("95% critical value:", critical_value))
   print(paste("Wald test statistic for restricted model (small):", res_small[2]))
   print(paste("Wald test statistic for restricted model (mid):  ", res_mid[2]))

@@ -374,20 +374,13 @@ Q_mid   <- res_mid[[1]]
 Q_large <- res_large[[1]]
 Q_combined <- res_combined[[1]]
 
-confidence_level <- 1 - alpha
-lower_critical_value <- qchisq((1 - confidence_level) / 2, df = Q_small)
-upper_critical_value <- qchisq(1 - (1 - confidence_level) / 2, df = Q_small)
-confidence_interval <- c(lower_critical_value, upper_critical_value)
-{print(paste("95% Confidence region:", confidence_interval[1], 
-            confidence_interval[2]))
+critical_value <- qchisq(1 - alpha, df = Q_small)
+{print(paste("95% critical value:", critical_value))
 print(paste("Wald test statistic for restricted model (small):", res_small[2]))
 print(paste("Wald test statistic for restricted model (mid):  ", res_mid[2]))
 print(paste("Wald test statistic for restricted model (large):", res_large[2]))}
 
 # Confidence region for the combined model
-lower_critical_value <- qchisq((1 - confidence_level) / 2, df = Q_combined)
-upper_critical_value <- qchisq(1 - (1 - confidence_level) / 2, df = Q_combined)
-confidence_interval <- c(lower_critical_value, upper_critical_value)
-{print(paste("95% Confidence region for combined model:", confidence_interval[1], 
-             confidence_interval[2]))
+critical_value <- qchisq(1 - alpha, df = Q_combined)
+{print(paste("95% critical value for combined model:", critical_value))
 print(paste("Wald test statistic for restricted model (combined):", res_combined[2]))}
