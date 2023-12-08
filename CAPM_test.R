@@ -354,18 +354,25 @@ x <- aligndataframes(combined)
 SUR_model_combined <- surfit(y, x)
 
 # Setup the restrictions for the models
-hypothesisMatrix <- matrix(c(1, 0, 
-                             0, 0), nrow = 2, ncol = 2, byrow = TRUE)
+hypothesisMatrix <- matrix(c(1, 0), nrow = 1, ncol = 2, byrow = TRUE)
 R      <- diag(1, nrow = 10, ncol = 10)
 R_comb <- diag(1, nrow = 30, ncol = 30)
 R %<>% kronecker(hypothesisMatrix)
 R_comb %<>% kronecker(hypothesisMatrix)
 
 # Perform a Wald test to test if the intercepts are significant
-res_small <- SUR_model_smallcap %>% Waldtest(vcovHC(., type = "HC3"), R)
-res_mid   <- SUR_model_midcap   %>% Waldtest(vcovHC(., type = "HC3"), R)
-res_large <- SUR_model_largecap %>% Waldtest(vcovHC(., type = "HC3"), R)
-res_combined <- SUR_model_combined %>% Waldtest(vcovHC(., type = "HC3"), R_comb)
+covariance_mat_small <- SUR_model_smallcap %>% vcovHC(type = "HC3") %>% {.[seq(1, nrow(.), by = 2),
+                                                                     seq(1, ncol(.), by = 2)]}
+covariance_mat_mid   <- SUR_model_midcap   %>% vcovHC(type = "HC3") %>% {.[seq(1, nrow(.), by = 2),
+                                                                           seq(1, ncol(.), by = 2)]}
+covariance_mat_large <- SUR_model_largecap %>% vcovHC(type = "HC3") %>% {.[seq(1, nrow(.), by = 2),
+                                                                           seq(1, ncol(.), by = 2)]}
+covariance_mat_comb  <- SUR_model_combined %>% vcovHC(type = "HC3") %>% {.[seq(1, nrow(.), by = 2),
+                                                                           seq(1, ncol(.), by = 2)]}
+res_small <- SUR_model_smallcap %>% Waldtest(covariance_mat_small, R)
+res_mid   <- SUR_model_midcap   %>% Waldtest(covariance_mat_mid,   R)
+res_large <- SUR_model_largecap %>% Waldtest(covariance_mat_large, R)
+res_combined <- SUR_model_combined %>% Waldtest(covariance_mat_comb, R_comb)
   
 # Calculate the 95% confidence region. The Wald statistic follow as chi
 # squared distribution with Q degrees of freedom under the null hypothesis
@@ -376,11 +383,15 @@ Q_combined <- res_combined[[1]]
 
 critical_value <- qchisq(1 - alpha, df = Q_small)
 {print(paste("95% critical value:", critical_value))
-print(paste("Wald test statistic for restricted model (small):", res_small[2]))
-print(paste("Wald test statistic for restricted model (mid):  ", res_mid[2]))
-print(paste("Wald test statistic for restricted model (large):", res_large[2]))}
+print(paste("Wald test statistic and p-value for restricted model (small):", res_small[2], 
+            " and ", 1 - pchisq(res_small[[2]], df = Q_small)))
+print(paste("Wald test statistic and p-value for restricted model (mid):  ", res_mid[2], 
+            " and ", 1 - pchisq(res_mid[[2]], df = Q_mid)))
+print(paste("Wald test statistic and p-value for restricted model (large):", res_large[2], 
+            " and ", 1 - pchisq(res_large[[2]], df = Q_large)))}
 
 # Confidence region for the combined model
 critical_value <- qchisq(1 - alpha, df = Q_combined)
 {print(paste("95% critical value for combined model:", critical_value))
-print(paste("Wald test statistic for restricted model (combined):", res_combined[2]))}
+print(paste("Wald test statistic for restricted model (combined):", res_combined[2], 
+            " and ", 1 - pchisq(res_combined[[2]], df = Q_combined)))}

@@ -409,18 +409,19 @@ SUR_model_combined <- surfit(y, x)
 
 # Perform Wald test to test if parameters for HML and SMB
 R <- diag(1, nrow = 30, ncol = 30)
-hypothesisMatrix = c(0, 0, 0, 0,
-                     0, 0, 0, 0,
-                     0, 0, 1, 0,
-                     0, 0, 0, 1) %>% matrix(ncol = 4, nrow = 4, byrow = TRUE)
+hypothesisMatrix = c(0, 0, 1, 0,
+                     0, 0, 0, 1) %>% matrix(ncol = 4, nrow = 2, byrow = TRUE)
 R %<>% kronecker(hypothesisMatrix)
-res_comb <- SUR_model_combined %>% Waldtest(vcovHC(., type = "HC3"), R)
+index <- c(seq(3, by = 4, length.out = 30), seq(4, by = 4, length.out = 30))
+covariance_mat_comb  <- SUR_model_combined %>% vcovHC(type = "HC3") %>% {.[index, index]}
+res_comb <- SUR_model_combined %>% Waldtest(covariance_mat_comb, R)
 
 # Find 95% confidence region
 Q_combined <- res_comb[[1]]
 critical_value <- qchisq(1 - alpha, df = Q_combined)
 {print(paste("95% critical value for combined model:", critical_value))
-  print(paste("Wald test statistic for restricted model (combined):", res_comb[2]))}
+  print(paste("Wald test statistic and p-value for restricted model (combined):", res_comb[2],
+              " and ", 1 - pchisq(res_comb[[2]], df = Q_combined)))}
 
 # Fit a SUR-model on each of the three size groups
 y <- listifyStocks(smallcap_return)
@@ -441,9 +442,13 @@ SUR_model_largecap <- surfit(y, x)
 # SMB are significant or not
 R <- diag(1, nrow = 10, ncol = 10)
 R %<>% kronecker(hypothesisMatrix)
-res_small <- SUR_model_smallcap %>% Waldtest(vcovHC(., type = "HC3"), R)
-res_mid   <- SUR_model_midcap   %>% Waldtest(vcovHC(., type = "HC3"), R)
-res_large <- SUR_model_largecap %>% Waldtest(vcovHC(., type = "HC3"), R)
+index <- c(seq(3, by = 4, length.out = 10), seq(4, by = 4, length.out = 10))
+covariance_mat_small <- SUR_model_smallcap %>% vcovHC(type = "HC3") %>% {.[index, index]}
+covariance_mat_mid   <- SUR_model_midcap   %>% vcovHC(type = "HC3") %>% {.[index, index]}
+covariance_mat_large <- SUR_model_largecap %>% vcovHC(type = "HC3") %>% {.[index, index]}
+res_small <- SUR_model_smallcap %>% Waldtest(covariance_mat_small, R)
+res_mid   <- SUR_model_midcap   %>% Waldtest(covariance_mat_mid, R)
+res_large <- SUR_model_largecap %>% Waldtest(covariance_mat_large, R)
 
 # Find the 95% critical value
 Q_small <- res_small[[1]]
@@ -451,6 +456,9 @@ Q_mid   <- res_mid[[1]]
 Q_large <- res_large[[1]]
 critical_value <- qchisq(1 - alpha, df = Q_small)
 {print(paste("95% critical value:", critical_value))
-  print(paste("Wald test statistic for restricted model (small):", res_small[2]))
-  print(paste("Wald test statistic for restricted model (mid):  ", res_mid[2]))
-  print(paste("Wald test statistic for restricted model (large):", res_large[2]))}
+  print(paste("Wald test statistic and p-value for restricted model (small):", res_small[2],
+              " and ", 1 - pchisq(res_small[[2]], df = Q_small)))
+  print(paste("Wald test statistic and p-value for restricted model (mid):  ", res_mid[2],
+              " and ", 1 - pchisq(res_mid[[2]], df = Q_mid)))
+  print(paste("Wald test statistic and p-value for restricted model (large):", res_large[2],
+              " and ", 1 - pchisq(res_large[[2]], df = Q_large)))}
