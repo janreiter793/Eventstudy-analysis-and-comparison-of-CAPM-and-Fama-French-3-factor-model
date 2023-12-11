@@ -96,6 +96,7 @@ retrievePrices <- function(period, names) {
     # and 'close'
     data$date %<>% as.Date
     data %<>% {.[, c('date', 'close')]}
+    data$close %<>% {c(NA, priceToSimpleReturn(.))}
     
     # Merge stockprices and data. Data will have fewer rows than stock prices,
     # because of missing dates. Values for these missing dates will be filled
@@ -112,19 +113,6 @@ retrievePrices <- function(period, names) {
 # Takes a vector of prices and turns it into simple returns
 priceToSimpleReturn <- function(prices) {
   prices %>% {diff(.) / .[1:(length(.) - 1)]} %>% return
-}
-
-# Takes a data frame with the dates and stock prices, and returns
-# the a data frame with simple returns instead of prices
-df_priceToSimpleReturn <- function(data) {
-  # Ignore the first column as it only contains dates
-  for(col in names(data[, -c(1)])) {
-    # Take column of prices, calculate simple return and add NA at the 
-    # beginning, such that return at time t corresponds to the return 
-    # earned from time t-1 to t.
-    data[[col]] %<>% {c(NA, priceToSimpleReturn(.))}
-  }
-  return(data)
 }
 
 # Takes a data frame of stock returns (with a date column) and turns
@@ -281,17 +269,9 @@ Waldtest <- function(model, V, R) {
 c(names_LCAP, names_MCAP, names_SCAP) %>% isListed
 
 # Retrieve the prices for all the stocks
-smallcap_prices <- retrievePrices(PERIOD, names_SCAP)
-midcap_prices   <- retrievePrices(PERIOD, names_MCAP)
-largecap_prices <- retrievePrices(PERIOD, names_LCAP)
-
-# Transform the prices into returns
-smallcap_return <- smallcap_prices %>% df_priceToSimpleReturn
-midcap_return   <- midcap_prices   %>% df_priceToSimpleReturn
-largecap_return <- largecap_prices %>% df_priceToSimpleReturn
-
-# Remove unnecessary data frames
-rm(smallcap_prices, midcap_prices, largecap_prices)
+smallcap_return <- retrievePrices(PERIOD, names_SCAP)
+midcap_return   <- retrievePrices(PERIOD, names_MCAP)
+largecap_return <- retrievePrices(PERIOD, names_LCAP)
 
 # Turn stock returns into excess returns
 smallcap_return %<>% returnsToExcessReturn 
