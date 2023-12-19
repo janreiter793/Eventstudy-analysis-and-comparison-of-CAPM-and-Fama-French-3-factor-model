@@ -47,7 +47,7 @@ names_SCAP <- c('RES', 'FCPT', 'SIX', 'MWA', 'FULT',
                 'ARCO', 'HURN', 'SBLK', 'BMBL', 'PRFZ')
 
 # Path to the FF-3 factors
-PATH <- "C:\\Users\\janre\\Documents\\uni\\7. Semester\\Projekt\\Kode\\factors.csv"
+PATH <- "C:\\...\\factors.csv"
 
 # Parameters:
 doPlots  <- FALSE # If TRUE, the program makes the plots
