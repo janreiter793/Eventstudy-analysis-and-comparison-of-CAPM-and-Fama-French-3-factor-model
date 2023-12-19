@@ -25,7 +25,7 @@ PERIOD <- c('2002-01-01', '2023-10-31')
 
 # Path to the FF-3 factors
 # Remember to fill in path to the file containing the factors
-PATH <- ""
+PATH <- "C:\\...\\factors.CSV"
 
 ########## LOAD FF3 FACTORS INTO R ##########
 # Read the factors Rm - Rf, SMB, HML, Rf
