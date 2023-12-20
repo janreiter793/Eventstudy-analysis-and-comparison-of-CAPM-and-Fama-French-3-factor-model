@@ -7,17 +7,12 @@
 #
 # PERFORMING THE EVENT STUDY is the "main" part of of the script.
 #
-# BEFORE RUNNING Program: Make sure to edit path on line 28 such that
+# BEFORE RUNNING Program: Make sure to edit path on line 23 such that
 #                         program can find the Fama-French factors
 #
 rm(list = ls())
 library(yahoofinancer)
 library(magrittr)
-library(zoo)
-library(caret)
-library(boot)
-library(latex2exp)
-library(fitdistrplus)
 
 ########## PROGRAM PARAMETERS ##########
 # Period to retrieve data from
@@ -25,7 +20,7 @@ PERIOD <- c('2002-01-01', '2023-10-31')
 
 # Path to the FF-3 factors
 # Remember to fill in path to the file containing the factors
-PATH <- "C:\\...\\factors.csv"
+PATH <- "C:\\Users\\Krist\\OneDrive - Aalborg Universitet\\AAU\\Semester 7\\project\\EventStudy\\FF3Factors311023.CSV"
 
 ########## LOAD FF3 FACTORS INTO R ##########
 # Read the factors Rm - Rf, SMB, HML, Rf
@@ -180,7 +175,6 @@ EventWindowLength <- 14
 EventWindow <- 0:(EventWindowLength - 1)
 
 
-
 # Creating the dataframe which contains the abnormal returns with these columns
 columns <- c("EventDate", "EventName",
              "AbnormalReturnT0", "AbnormalReturnT1", 
@@ -246,6 +240,7 @@ for (i in which(data$date %in% intersect(EventDates$date, data$date)) ) {
     AnalysisData <- rbind(AnalysisData, new_row)
     
 }
+AnalysisData
 
 
 # Creating the dataframe which contains the test statistics with these columns
@@ -304,7 +299,7 @@ for (i in 1:nrow(AnalysisData)) {
         hist(breaks = breaks, freq = FALSE, 
              main = paste("Histogram for the event ", 
                           AnalysisData[i, 2], "", sep = "\""),
-             xlab = TeX("Residuals"),
+             xlab = "Residuals",
              xlim = c(-0.20, 0.20), xaxt = "s", xaxp = c(-0.2, 0.2, 40),
              ylim = c(0, 25),
              cex.main = 1.45, cex.lab = 1.45, cex.axis = 1,
@@ -319,11 +314,11 @@ for (i in 1:nrow(AnalysisData)) {
 
 
 # The y-placement for the observation numbers in the following plots
-valuesHeight <- list(-c(1, 1, 1, 1, 1, 1, 1, 1.5, 1, 1.5, 1, 1.5, 1, 2),
-                     -c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.5, 1.5),
-                     -c(1, 1, 1, 1, 1, 1.5, 1, 1, 1, 1.5, 2, 1.5, 1.5, 1.5),
-                     -c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.5, 1.5, 2, 1.5),
-                     -c(1, 1, 1, 1, 1, 1, 1, 1, 1.5, 2, 1.5, 1, 1.5, 1))
+valuesHeight <- list(-c(1, 1, 1, 1, 1, 1, 1, 1.75, 1, 1.75, 1, 1.75, 1, 2.5),
+                     -c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.75, 1.75),
+                     -c(1, 1, 1, 1, 1, 1.75, 1, 1, 1, 1.75, 2.5, 1.75, 1.75, 1.75),
+                     -c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.75, 1.75, 2.5, 1.75),
+                     -c(1, 1, 1, 1, 1, 1, 1, 1, 1.75, 2.5, 1.75, 1, 1.75, 1))
 
 
 # Constructing the plots with kernel densities and observations after the event
@@ -360,6 +355,4 @@ for (i in 1:nrow(AnalysisData)) {
            col = "blue", lty = 2, cex = 2,
            box.lty = 0)
 }
-
-
 
