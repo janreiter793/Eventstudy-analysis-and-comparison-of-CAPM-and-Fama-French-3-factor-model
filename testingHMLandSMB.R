@@ -43,10 +43,6 @@ names_SCAP <- c('RES', 'FCPT', 'SIX', 'MWA', 'FULT',
 # Path to the FF-3 factors
 PATH <- "C:\\Users\\janre\\Documents\\uni\\7. Semester\\Projekt\\Kode\\factors.csv"
 
-# Parameters
-validation_split <- 0.2  # The percentage of data assigned to a test data set.
-alpha            <- 0.05 # Significance level
-
 ########## LOAD FF3 FACTORS INTO R ##########
 # Read the factors Rm - Rf, SMB, HML, Rf
 csv <- read.csv(PATH)
