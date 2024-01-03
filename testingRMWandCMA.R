@@ -4,7 +4,7 @@
 # from 2002-01-01 to 2022-01-0. Here 10 stocks are chosen from a small cap     #
 # stocks list, 10 from a mid cap stocks list, and 10 from a large cap list.    #
 # SUR-models are used in conjunction with the Wald test to test if the         #
-# paramters associated with HML and SMB are statistically significant.         #
+# paramters associated with RMW and CMA are statistically significant.         #
 #                                                                              #
 # OVERVIEW - The script is organized into 4 sections:                          #
 #   - PROGRAM PARAMETERS                                                       #
