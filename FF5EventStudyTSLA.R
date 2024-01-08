@@ -7,17 +7,13 @@
 #
 # PERFORMING THE EVENT STUDY is the "main" part of of the script.
 #
-# BEFORE RUNNING Program: Make sure to edit path on line 28 such that
+# BEFORE RUNNING Program: Make sure to edit path on line 24 such that
 #                         program can find the Fama-French factors
 #
 rm(list = ls())
 library(yahoofinancer)
 library(magrittr)
-# library(zoo)
-# library(caret)
-# library(boot)
-# library(latex2exp)
-# library(fitdistrplus)
+
 
 ########## PROGRAM PARAMETERS ##########
 # Period to retrieve data from
@@ -25,7 +21,7 @@ PERIOD <- c('2002-01-01', '2023-10-31')
 
 # Path to the FF-3 factors
 # Remember to fill in path to the file containing the factors
-PATH <- "C:\\Users\\Krist\\OneDrive - Aalborg Universitet\\AAU\\Semester 7\\project\\EventStudy\\FF5Factors301123.CSV"
+PATH <- ""
 
 ########## LOAD FF3 FACTORS INTO R ##########
 # Read the factors Rm - Rf, SMB, HML, Rf
