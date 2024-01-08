@@ -356,7 +356,3 @@ for (i in 1:nrow(AnalysisData)) {
 }
 
 
-library(xtable)
-
-xtable(AbnormalData, type = "latex")
-
